@@ -1,0 +1,303 @@
+<html>
+<head>
+<title>SF Mockup</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+
+</head>
+
+<body>
+<!--nav class="navbar navbar-light bg-light">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="#">
+      <img src="/imgs/logo-salesforce.svg" alt="" height="50px" class="d-inline-block align-text-top">
+      Salesforce Mockup
+    </a>
+  </div>
+</nav-->
+
+
+<div class="container">
+  <div class="row">
+    <div class="col">
+      	<div>Uploading files for ticket: <span id="spanTicketID">12345</span></div>
+    </div>
+  </div>
+	
+
+
+  <hr>
+  <div class="row">
+  	<div class="col-4">
+  		<button id="btnSelectFiles" type="button" class="btn btn-info btn-sm ticket-selector">Select files</button>
+  		<!-- <button id="btnClearFiles" type="button" class="btn btn-warning btn-sm ticket-selector" disabled>Clear files</button> -->
+  	</div>
+  	<div class="col-8">
+  		<img src="https://faspex.cp-poc.tangram-lab.com/aspera/faspex/images/dragndrop.jpg?1585191214">
+  	</div>
+  </div>
+
+  <div class="row">
+  	<div class="col-12">
+		<table id="selectedFiles" class="table table-hover table-striped">
+		  	<thead>
+		   		<tr>
+		   			<th scope="col">#</th>
+						<th scope="col">file name</th>
+						<th scope="col">size</th>
+						<th scope="col">date</th>
+		    	</tr>
+			  </thead>
+			  <tbody>
+			  </tbody>
+		</table>
+  		<button id="btnUploadFiles" type="button" class="btn btn-success btn-sm ticket-selector" disabled>Upload files</button>
+  	</div>
+  </div>
+
+  <div class="row">
+  	<div class="col">
+		<div class="progress" id="progress-div" style="display: none;">
+		  <div id="progress-bar" class="progress-bar progress-bar-striped" role="progressbar" style="width: 0%;">0%</div>
+		</div>
+	</div>
+  </div>
+
+  <hr/>
+  <div class="row">
+  	<div class="col">
+  		<div id="messages">
+ 		 </div>
+	</div>
+  </div>
+
+
+  <div class="row">
+  	<div class="col-4">
+  		<button id="btnAbout" type="button" class="btn btn-outline-dark btn-sm ticket-selector">About</button>
+  	</div>
+  	<div class="col-8">
+  		<button id="btnStatus" type="button" class="btn btn-outline-dark btn-sm ticket-selector">Status</button>
+  		<span id="connectStatus"></span>
+  	</div>
+  </div>
+</div>
+
+<!-- scripts -->
+<script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js" integrity="sha384-IQsoLXl5PILFhosVNubq5LC7Qb9DXgDA9i+tQ8Zj3iwWAwPtgFTxbJ8NT4GN1R8p" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js" integrity="sha384-cVKIPhGWiC2Al4u+LWgxfKTRIcfu0JTxR+EQDz/bgldoEyl4H0zUF0QKbrJ0EcQF" crossorigin="anonymous"></script>
+
+<!-- aspera -->
+<script src="https://d3gcli72yxqn2z.cloudfront.net/connect/v4/asperaweb-4.min.js"></script>
+<script>
+	let client;
+	let selectedDataTransfer = {};
+	let username = "customer1";
+	let currentTicket = "unknown";
+	let activeTransferUUID;
+	let okToRemoveListener = false;
+
+	$( document ).ready(function() {
+		client = new AW4.Connect({
+			minVersion: '3.10.0',
+			dragDropEnabled: true
+		});
+
+		client.initSession();
+
+		$("#btnAbout").click(function(){
+			client.showAbout(
+				{
+    				success: () => console.log("success"),
+    				error: err => console.log("error: " + err)
+				});
+		});
+
+		$("#btnStatus").click(function(){
+			$("#connectStatus").text("updating ...");
+			$("#connectStatus").text(client.getStatus());
+		});
+
+		$("#btnSelectFiles").click(selectFiles);
+		$("#btnClearFiles").click(clearFiles);
+		$("#btnUploadFiles").click(uploadFiles);
+
+		let parsedUrl = new URL(window.location.href);
+		currentTicket = parsedUrl.searchParams.get("ticket"); 
+
+		$("#spanTicketID").text (currentTicket);
+	});
+
+
+	function selectFiles() {
+		let options = { 
+			"allowMultipleSelection": true,
+			"title": "Choose files to upload to ticket " + currentTicket
+		};
+
+		let callbacks = {
+			success: data => { 
+				selectedDataTransfer=data.dataTransfer; 
+				console.log(data); 
+
+				if (selectedDataTransfer.files.length > 0) {
+					let tbody=$("#selectedFiles tbody");
+	  				tbody.empty();
+
+					$.each(selectedDataTransfer.files, function( index, fileInfo ) {
+						tbody.append(`
+								<tr>
+							    <th scope="row">${index+1}</th>
+							    <td>${fileInfo.name}</td>
+							    <td>${fileInfo.size}</td>
+							    <td>${fileInfo.lastModifiedDate}</td>
+					    	</tr>
+							`);
+					});
+					$("#btnUploadFiles").prop('disabled', false);
+				}
+				else {
+					$("#btnUploadFiles").prop('disabled', true);
+				}
+			},
+			error: err => console.log("uploadFile error: " + err)
+		};
+
+		client.showSelectFileDialog(callbacks, options);
+	}
+
+	function clearFiles() {
+		selectedDataTransfer={};
+		$("#selectedFiles tbody").empty();
+		$("#btnUploadFiles").prop('disabled', true);
+		$("#btnClearFiles").prop('disabled', true);
+	}
+
+	function uploadFiles() {
+		$("#btnUploadFiles").prop("disabled", true);
+		getTransferSpec(currentTicket);
+	}
+
+
+	function getTransferSpec(ticketId) {
+		$.ajax({
+		    url: '/transferSpec/' + ticketId,
+		    type: 'get',
+		    headers: {
+		        "Accept": "application/json",
+		        "Content-type": "application/json"
+		    },
+		    dataType: 'json'
+		}).done (function(data) {
+			console.log("Transfer spec received: " + data);
+
+			let transferSpec = {
+				authentication: "token",
+				cipher: data.cipher,
+				cookie: data.cookie,
+				create_dir: true,
+				destination_root: data.destination_root,
+				direction: "send",
+				fasp_port: data.fasp_port,
+				http_fallback: data.http_fallback,
+				http_fallback_port: data.http_fallback_port,
+				min_rate_kbps: 0,
+				paths: [], //data.paths,
+				preserve_times: true,
+				rate_policy: data.rate_policy,
+				rate_policy_allowed: data.rate_policy_allowed,
+				remote_host: data.remote_host,
+				remote_user: data.remote_user,
+				source_root: "",
+				ssh_port: data.ssh_port,
+				tags: data.tags,
+				target_rate_cap_kbps: data.target_rate_cap_kbps,
+				target_rate_kbps: data.target_rate_kbps,
+				token: data.token
+			};
+
+			// add selected files as sources
+			$.each(selectedDataTransfer.files, function( index, fileInfo ) {
+				transferSpec.paths.push({"source":fileInfo.name});
+			});
+			
+			transferFiles(transferSpec);
+		}).fail (function(jqXHR, textStatus) {
+			console.log("Failed to get a transfer spec: " + textStatus);
+			$("#btnUploadFiles").prop("disabled", false);
+		});
+	}
+
+	function transferFiles (transferSpec) {
+		console.log("Will transfer with this transfer spec: ");
+		console.log(transferSpec);
+
+		let transferId = client.startTransfer(transferSpec, {}, {
+			success: (data) => {
+				console.log("Started transfer: " + data);
+				console.log(data);
+
+				activeTransferUUID = data.transfer_specs[0].uuid;
+				addMessage("primary", "Transfer started - " + activeTransferUUID);
+
+				$("#btnUploadFiles").hide();
+				$("#progress-div").show();
+
+				client.addEventListener(AW4.Connect.EVENT.TRANSFER, transferListener);
+				setTimeout(function(){ okToRemoveListener=true; }, 20000);
+				//setTimeout(function() {client.removeEventListener(AW4.Connect.EVENT.TRANSFER, transferListener); addMessage("primary", "removed listener"); }, 10000);
+			},
+			error: err => {console.log("error: " + JSON.stringify(err));}
+		});
+
+		console.log("Transfer request: " + JSON.stringify(transferId));
+	}
+
+	function transferListener(type, allTransfersInfo) {
+	  if (type === AW4.Connect.EVENT.TRANSFER) {
+	  	console.log('Received transfer event!');
+
+	  	let activeTransferInfo;
+
+	  	for (let transferInfo of allTransfersInfo.transfers) {
+	  		if (transferInfo.uuid == activeTransferUUID) {
+	  			activeTransferInfo = transferInfo;
+	  			break;
+	  		}
+	  	}
+
+	  	if (activeTransferInfo) {
+	  		let p =  (activeTransferInfo.percentage==1)? 100 : Math.round(activeTransferInfo.percentage*100);
+
+	  		$("#progress-bar").text(p + "%");
+	  		$("#progress-bar").css("width", p + "%");
+
+	  		if (p == 100) {
+	  			client.removeEventListener(AW4.Connect.EVENT.TRANSFER, transferListener); 
+
+	  			$("#progress-bar").removeClass("progress-bar-striped").addClass("bg-success");
+	  			addMessage("success", "File(s) have been uploaded successfully."); 
+	  		}
+	  	}
+	  	else {
+	  		if (okToRemoveListener) {
+		  		client.removeEventListener(AW4.Connect.EVENT.TRANSFER, transferListener); 
+		  		addMessage("primary", "removed listener"); 
+		  	}
+	  	}
+	  }
+	}
+
+	function addMessage(sev, message) {
+		$("#messages").append(`
+		<div class="alert alert-${sev} alert-dismissible fade show" role="alert">
+  			${message}
+  			<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  		</div>
+  		`);
+	}
+</script>
+
+</body>
